@@ -5,8 +5,11 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 dotenv.config();
 
+import { initializeSockets } from './sockets/index.js';
+
 import authRoutes from './routes/authRoutes.js';
 import gameNightRoutes from './routes/gameNightRoutes.js';
+import gamesRoutes from './routes/gamesRoutes.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -23,6 +26,7 @@ app.use(express.json());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/gamenights', gameNightRoutes);
+app.use('/api/games', gamesRoutes);
 
 //Test route
 app.get('/', (req, res) => {
@@ -30,13 +34,7 @@ app.get('/', (req, res) => {
 });
 
 // Socket.io connection
-io.on('connection', (socket) => {
-    console.log('A user connected:', socket.id);
-
-    socket.on('disconnect', () => {
-        console.log('User disconnected:', socket.id);
-    });
-});
+initializeSockets(io);
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
