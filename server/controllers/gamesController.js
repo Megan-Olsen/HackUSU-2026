@@ -119,53 +119,48 @@ export const getActiveGames = async (req, res) => {
   }
 };
 
-export const importFromBGG = async (req, res) => {
-  const { bgg_username } = req.body;
-  const user_id = req.user.id;
+export const searchBGG = async (req, res) => {
+  const { query } = req.query;
+  console.log('BGG search for:', query);
   try {
     const response = await axios.get(
-      `https://boardgamegeek.com/xmlapi2/collection?username=${bgg_username}&own=1&stats=1`
+      `https://boardgamegeek.com/xmlapi2/search?query=${encodeURIComponent(query)}&type=boardgame&exact=0`
     );
     const xml = response.data;
+    const items = xml.match(/<item[^>]*objectid="(\d+)"[^>]*>[\s\S]*?<name[^>]*value="([^"]*)"[\s\S]*?<\/item>/g) || [];
+    const games = items.slice(0, 10).map(item => {
+      const id = item.match(/objectid="(\d+)"/)?.[1];
+      const name = item.match(/value="([^"]*)"/)?.[1];
+      return { bgg_id: parseInt(id), title: name };
+    });
+    res.json(games);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
 
-    // Parse the XML
-    const items = xml.match(/<item[^>]*objectid="(\d+)"[^>]*>([\s\S]*?)<\/item>/g) || [];
-    
-    for (const item of items) {
-      const bggId = item.match(/objectid="(\d+)"/)?.[1];
-      const title = item.match(/<name[^>]*sortindex="1"[^>]*>(.*?)<\/name>/)?.[1] ||
-                    item.match(/<name>(.*?)<\/name>/)?.[1];
-      const minPlayers = item.match(/<minplayers[^>]*>(\d+)<\/minplayers>/)?.[1];
-      const maxPlayers = item.match(/<maxplayers[^>]*>(\d+)<\/maxplayers>/)?.[1];
-      const playTime = item.match(/<playingtime[^>]*>(\d+)<\/playingtime>/)?.[1];
-      const thumbnail = item.match(/<thumbnail>(.*?)<\/thumbnail>/)?.[1];
-
-      if (!title || !bggId) continue;
-
-      let game;
-      const existing = await pool.query('SELECT * FROM games WHERE bgg_id = $1', [parseInt(bggId)]);
-      game = existing.rows[0];
-
-      if (!game) {
-        const result = await pool.query(
-          'INSERT INTO games (title, min_players, max_players, avg_playtime, bgg_id, thumbnail_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-          [title, parseInt(minPlayers) || 2, parseInt(maxPlayers) || 4, parseInt(playTime) || 30, parseInt(bggId), thumbnail || null]
-        );
-        game = result.rows[0];
-      }
-
-      await pool.query(
-        'INSERT INTO user_games (user_id, game_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-        [user_id, game.id]
-      );
-    }
-
-    // Return user's full library
-    const library = await pool.query(
-      `SELECT g.* FROM games g JOIN user_games ug ON g.id = ug.game_id WHERE ug.user_id = $1`,
-      [user_id]
+export const removeFromLibrary = async (req, res) => {
+  const { game_id } = req.params;
+  const user_id = req.user.id;
+  try {
+    await pool.query(
+      'DELETE FROM user_games WHERE user_id = $1 AND game_id = $2',
+      [user_id, game_id]
     );
-    res.json(library.rows);
+    res.json({ message: 'Game removed from library' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+export const removeGameFromNight = async (req, res) => {
+  const { game_night_id, game_id } = req.params;
+  try {
+    await pool.query(
+      'DELETE FROM game_night_games WHERE game_night_id = $1 AND game_id = $2',
+      [game_night_id, game_id]
+    );
+    res.json({ message: 'Game removed from night' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

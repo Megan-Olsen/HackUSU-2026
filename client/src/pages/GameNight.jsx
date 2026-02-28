@@ -16,6 +16,8 @@ export default function GameNight() {
   const [message, setMessage] = useState('');
   const [preferences, setPreferences] = useState({});
   const [activeGames, setActiveGames] = useState([]);
+  const [library, setLibrary] = useState([]);
+  const [playerDeclined, setPlayerDeclined] = useState(null);
 
   const isHost = gameNight?.host_id === parseInt(user?.id);
   const navigate = useNavigate();
@@ -27,6 +29,7 @@ export default function GameNight() {
     fetchGameNight();
     fetchGames();
     fetchActiveGames();
+    fetchLibrary();
     if (socket) {
       socket.emit('join_room', { gameNightId: id });
 
@@ -54,13 +57,14 @@ export default function GameNight() {
         fetchActiveGames();
       });
 
-      socket.on('player_declined', ({ remainingPlayers }) => {
-        if (remainingPlayers.includes(user?.id)) {
-          setMessage('A player declined. Would you still like to play with fewer people?');
-        } else {
-          setSuggestion(null);
-        }
-      });
+      socket.on('player_declined', ({ activeGameId, remainingPlayers }) => {
+  if (remainingPlayers.map(p => parseInt(p)).includes(parseInt(user?.id))) {
+    setPlayerDeclined({ activeGameId, remainingPlayers });
+    setMessage('');
+  } else {
+    setSuggestion(null);
+  }
+});
 
       return () => {
         socket.off('game_suggestion');
@@ -135,6 +139,24 @@ export default function GameNight() {
     setActiveGames(res.data);
   } catch (err) {
     console.error('Active games error:',err);
+  }
+};
+
+const fetchLibrary = async () => {
+  try {
+    const res = await axios.get('/api/games/library');
+    setLibrary(res.data);
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+const removeGameFromNight = async (gameId) => {
+  try {
+    await axios.delete(`/api/games/night/${id}/${gameId}`);
+    fetchGames();
+  } catch (err) {
+    console.error(err);
   }
 };
 
@@ -218,6 +240,34 @@ export default function GameNight() {
         </div>
     ))}
 
+    {playerDeclined && (
+  <div style={{ border: '2px solid orange', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
+    <h2>⚠️ A player declined</h2>
+    <p>Would you still like to play with fewer people?</p>
+    <button onClick={() => {
+      socket.emit('accept_game', {
+        activeGameId: playerDeclined.activeGameId,
+        userId: user.id,
+        gameNightId: id
+      });
+      setPlayerDeclined(null);
+      setMessage('Accepted! Waiting for others...');
+    }} style={{ marginRight: '10px', padding: '10px 20px', background: 'green', color: 'white' }}>
+      Yes ✅
+    </button>
+    <button onClick={() => {
+      socket.emit('decline_game', {
+        activeGameId: playerDeclined.activeGameId,
+        userId: user.id,
+        gameNightId: id
+      });
+      setPlayerDeclined(null);
+    }} style={{ padding: '10px 20px', background: 'red', color: 'white' }}>
+      No ❌
+    </button>
+  </div>
+)}
+
       {/* Players */}
       <div style={{ border: '1px solid #ccc', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
         <h2>Players ({players.length})</h2>
@@ -255,30 +305,58 @@ export default function GameNight() {
         ))}
 
         {/* Add Game */}
-        <h3>Add a Game</h3>
-        <input
-          placeholder="Game title"
-          value={newGame.title}
-          onChange={e => setNewGame({ ...newGame, title: e.target.value })}
-          style={{ display: 'block', width: '100%', marginBottom: '5px', padding: '8px' }}
-        />
-        <input
-          type="number"
-          placeholder="Min players"
-          value={newGame.min_players}
-          onChange={e => setNewGame({ ...newGame, min_players: parseInt(e.target.value) })}
-          style={{ width: '48%', marginRight: '4%', marginBottom: '5px', padding: '8px' }}
-        />
-        <input
-          type="number"
-          placeholder="Max players"
-          value={newGame.max_players}
-          onChange={e => setNewGame({ ...newGame, max_players: parseInt(e.target.value) })}
-          style={{ width: '48%', marginBottom: '5px', padding: '8px' }}
-        />
-        <button onClick={addGame} style={{ width: '100%', padding: '10px', marginTop: '5px' }}>
-          Add Game
+        <h3>Add from Your Library</h3>
+<button onClick={async () => {
+  for (const g of library) {
+    await axios.post('/api/games/night/add', { game_night_id: id, game_id: g.id });
+  }
+  fetchGames();
+}} style={{ width: '100%', padding: '8px', marginBottom: '10px' }}>
+  ➕ Add All My Games
+</button>
+{library.map(g => {
+  const inNight = games.some(ng => ng.id === g.id);
+  return (
+    <div key={g.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px', borderBottom: '1px solid #eee' }}>
+      <span>{g.title} ({g.min_players}-{g.max_players} players)</span>
+      {inNight ? (
+        <button onClick={() => removeGameFromNight(g.id)} style={{ background: 'red', color: 'white', padding: '4px 8px' }}>
+          ➖
         </button>
+      ) : (
+        <button onClick={async () => {
+          await axios.post('/api/games/night/add', { game_night_id: id, game_id: g.id });
+          fetchGames();
+        }}>➕</button>
+      )}
+    </div>
+  );
+})}
+
+<h3>Add a New Game</h3>
+<input
+  placeholder="Game title"
+  value={newGame.title}
+  onChange={e => setNewGame({ ...newGame, title: e.target.value })}
+  style={{ display: 'block', width: '100%', marginBottom: '5px', padding: '8px' }}
+/>
+<input
+  type="number"
+  placeholder="Min players"
+  value={newGame.min_players}
+  onChange={e => setNewGame({ ...newGame, min_players: parseInt(e.target.value) })}
+  style={{ width: '48%', marginRight: '4%', marginBottom: '5px', padding: '8px' }}
+/>
+<input
+  type="number"
+  placeholder="Max players"
+  value={newGame.max_players}
+  onChange={e => setNewGame({ ...newGame, max_players: parseInt(e.target.value) })}
+  style={{ width: '48%', marginBottom: '5px', padding: '8px' }}
+/>
+<button onClick={addGame} style={{ width: '100%', padding: '10px', marginTop: '5px' }}>
+  Add New Game
+</button>
       </div>
 
       {/* Find Game Button */}
