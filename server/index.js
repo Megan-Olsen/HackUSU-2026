@@ -3,8 +3,9 @@ import http from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
-
 dotenv.config();
+
+import authRoutes from './routes/authRoutes.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -17,6 +18,9 @@ const io = new Server(server, {
 
 app.use(cors());
 app.use(express.json());
+
+
+app.use('/api/auth', authRoutes);
 
 //Test route
 app.get('/', (req, res) => {
@@ -37,13 +41,10 @@ server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
 
-// app.use(cors());
-// app.use(express.json());
+// Test Route 
+app.get('/', (req, res) => {
+    res.json({ message: 'Game Night Guru API is running!'});
+});
 
-// app.get('/api/hello', (req, res) => {
-// res.json({ message: "Hello from the Express server!" });
-// });
 
-// app.listen(PORT, () => {
-// console.log(`Server is running on http://localhost:${PORT}`);
-// });
+

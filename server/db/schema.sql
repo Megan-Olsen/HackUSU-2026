@@ -66,3 +66,40 @@ CREATE TABLE player_game_preferences (
   preference VARCHAR(20) DEFAULT 'okay',
   top_game BOOLEAN DEFAULT FALSE
 );
+
+CREATE INDEX idx_game_night_players_night ON game_night_players(game_night_id);
+CREATE INDEX idx_game_night_players_user ON game_night_players(user_id);
+CREATE INDEX idx_player_preferences_night ON player_game_preferences(game_night_id);
+CREATE INDEX idx_player_preferences_user ON player_game_preferences(user_id);
+CREATE INDEX idx_game_night_games_night ON game_night_games(game_night_id);
+
+
+
+CREATE TABLE active_games (
+  id SERIAL PRIMARY KEY,
+  game_night_id INTEGER REFERENCES game_nights(id) ON DELETE CASCADE,
+  game_id INTEGER REFERENCES games(id) ON DELETE CASCADE,
+  status VARCHAR(20) DEFAULT 'pending',
+  created_at TIMESTAMP DEFAULT NOW(),
+  completed_at TIMESTAMP
+);
+
+CREATE TABLE active_game_players (
+  id SERIAL PRIMARY KEY,
+  active_game_id INTEGER REFERENCES active_games(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  accepted BOOLEAN DEFAULT FALSE
+);
+
+CREATE TABLE game_requests (
+  id SERIAL PRIMARY KEY,
+  game_night_id INTEGER REFERENCES game_nights(id) ON DELETE CASCADE,
+  requester_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  game_id INTEGER REFERENCES games(id) ON DELETE CASCADE,
+  status VARCHAR(20) DEFAULT 'pending',
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_active_games_night ON active_games(game_night_id);
+CREATE INDEX idx_active_game_players_game ON active_game_players(active_game_id);
