@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import axios from 'axios';
@@ -14,6 +14,11 @@ export default function GameNight() {
   const [games, setGames] = useState([]);
   const [suggestion, setSuggestion] = useState(null);
   const [message, setMessage] = useState('');
+  const [preferences, setPreferences] = useState({});
+  const [activeGames, setActiveGames] = useState([]);
+
+  const isHost = gameNight?.host_id === parseInt(user?.id);
+  const navigate = useNavigate();
 
   // Add game form
   const [newGame, setNewGame] = useState({ title: '', min_players: 2, max_players: 4, avg_playtime: 30 });
@@ -21,25 +26,32 @@ export default function GameNight() {
   useEffect(() => {
     fetchGameNight();
     fetchGames();
+    fetchActiveGames();
     if (socket) {
       socket.emit('join_room', { gameNightId: id });
 
       socket.on('game_suggestion', (data) => {
-        if (data.players.includes(user?.id)) {
+        console.log('Suggestion received:', data);
+        console.log('Current user id:', user?.id);
+        if (data.players.map(p => parseInt(p)).includes(parseInt(user?.id))) {
           setSuggestion(data);
         }
       });
+
+
 
       socket.on('game_confirmed', () => {
         setSuggestion(null);
         setMessage('Game confirmed! Have fun! 🎲');
         fetchGameNight();
+        fetchActiveGames();
       });
 
       socket.on('game_completed', () => {
         setMessage('Game complete! Finding next game...');
         fetchGameNight();
         fetchGames();
+        fetchActiveGames();
       });
 
       socket.on('player_declined', ({ remainingPlayers }) => {
@@ -70,13 +82,20 @@ export default function GameNight() {
   };
 
   const fetchGames = async () => {
-    try {
-      const res = await axios.get(`/api/games/night/${id}`);
-      setGames(res.data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  try {
+    const res = await axios.get(`/api/games/night/${id}`);
+    setGames(res.data);
+    // Fetch preferences
+    const prefsRes = await axios.get(`/api/games/preferences/${id}`);
+    const prefsMap = {};
+    prefsRes.data.forEach(p => {
+      prefsMap[p.game_id] = { preference: p.preference, top_game: p.top_game };
+    });
+    setPreferences(prefsMap);
+  } catch (err) {
+    console.error(err);
+  }
+};
 
   const addGame = async () => {
     try {
@@ -95,18 +114,29 @@ export default function GameNight() {
   };
 
   const setPreference = async (gameId, preference, topGame = false) => {
-    try {
-      await axios.post('/api/games/preference', {
-        game_night_id: id,
-        game_id: gameId,
-        preference,
-        top_game: topGame
-      });
-      setMessage('Preference saved!');
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  try {
+    await axios.post('/api/games/preference', {
+      game_night_id: id,
+      game_id: gameId,
+      preference,
+      top_game: topGame
+    });
+    setPreferences(prev => ({ ...prev, [gameId]: { preference, top_game: topGame } }));
+    setMessage('Preference saved!');
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+  const fetchActiveGames = async () => {
+  try {
+    const res = await axios.get(`/api/games/active/${id}`);
+    console.log('Active games:', res.data);
+    setActiveGames(res.data);
+  } catch (err) {
+    console.error('Active games error:',err);
+  }
+};
 
   const acceptGame = () => {
     socket.emit('accept_game', {
@@ -142,6 +172,30 @@ export default function GameNight() {
 
       {message && <p style={{ color: 'green' }}>{message}</p>}
 
+        <div style={{ marginBottom: '20px' }}>
+  {isHost ? (
+    <button 
+      onClick={async () => {
+        await axios.put(`/api/gamenights/close/${id}`);
+        navigate('/dashboard');
+      }}
+      style={{ padding: '10px 20px', background: 'red', color: 'white', marginRight: '10px' }}
+    >
+      🔒 Close Game Night
+    </button>
+  ) : (
+    <button 
+      onClick={async () => {
+        await axios.put(`/api/gamenights/leave/${id}`);
+        navigate('/dashboard');
+      }}
+      style={{ padding: '10px 20px', background: 'orange', color: 'white' }}
+    >
+      🚪 Leave Game Night
+    </button>
+  )}
+</div>
+
       {/* Game Suggestion */}
       {suggestion && (
         <div style={{ border: '2px solid green', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
@@ -155,15 +209,34 @@ export default function GameNight() {
           </button>
         </div>
       )}
+      {activeGames.filter(g => g.status === 'active').map(g => (
+        <div key={g.id} style={{ border: '2px solid blue', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
+        <h2>🎮 Now Playing: {g.title}</h2>
+        <button onClick={() => completeGame(g.id)} style={{ padding: '10px 20px', background: 'blue', color: 'white' }}>
+            ✅ Complete Game
+        </button>
+        </div>
+    ))}
 
       {/* Players */}
       <div style={{ border: '1px solid #ccc', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
         <h2>Players ({players.length})</h2>
         {players.map(p => (
-          <div key={p.user_id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-            <span>{p.username} — {p.status}</span>
-          </div>
-        ))}
+  <div key={p.user_id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+    <span>{p.username} — {p.status}</span>
+    {isHost && p.user_id !== parseInt(user?.id) && (
+      <button
+        onClick={async () => {
+          await axios.put(`/api/gamenights/remove/${id}/${p.user_id}`);
+          fetchGameNight();
+        }}
+        style={{ padding: '3px 8px', background: 'red', color: 'white', fontSize: '12px' }}
+      >
+        Remove
+      </button>
+    )}
+  </div>
+))}
       </div>
 
       {/* Games */}
@@ -173,10 +246,10 @@ export default function GameNight() {
           <div key={g.id} style={{ marginBottom: '15px', padding: '10px', border: '1px solid #eee', borderRadius: '4px' }}>
             <strong>{g.title}</strong> ({g.min_players}-{g.max_players} players)
             <div style={{ marginTop: '5px' }}>
-              <button onClick={() => setPreference(g.id, 'want')} style={{ marginRight: '5px' }}>⭐ Want</button>
-              <button onClick={() => setPreference(g.id, 'okay')} style={{ marginRight: '5px' }}>👍 Okay</button>
-              <button onClick={() => setPreference(g.id, 'skip')} style={{ marginRight: '5px' }}>❌ Skip</button>
-              <button onClick={() => setPreference(g.id, 'want', true)}>🏆 Top Game</button>
+                <button onClick={() => setPreference(g.id, 'want')} style={{ marginRight: '5px', background: preferences[g.id]?.preference === 'want' ? 'gold' : '' }}>⭐ Want</button>
+                <button onClick={() => setPreference(g.id, 'okay')} style={{ marginRight: '5px', background: preferences[g.id]?.preference === 'okay' && !preferences[g.id]?.top_game ? 'lightblue' : '' }}>👍 Okay</button>
+                <button onClick={() => setPreference(g.id, 'skip')} style={{ marginRight: '5px', background: preferences[g.id]?.preference === 'skip' ? 'lightcoral' : '' }}>❌ Skip</button>
+                <button onClick={() => setPreference(g.id, 'want', true)} style={{ background: preferences[g.id]?.top_game ? 'orange' : '' }}>🏆 Top Game</button>
             </div>
           </div>
         ))}

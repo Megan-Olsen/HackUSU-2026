@@ -113,6 +113,24 @@ export const initializeSockets = (io) => {
           );
         }
 
+        // Get the game id from the active game
+const completedGame = await pool.query(
+  'SELECT game_id FROM active_games WHERE id = $1',
+  [activeGameId]
+);
+const gameId = completedGame.rows[0].game_id;
+
+// Mark game as not_tonight for all players who just played
+for (const player of players.rows) {
+  await pool.query(
+    `INSERT INTO player_game_preferences (game_night_id, user_id, game_id, preference)
+     VALUES ($1, $2, $3, 'not_tonight')
+     ON CONFLICT (game_night_id, user_id, game_id)
+     DO UPDATE SET preference = 'not_tonight'`,
+    [gameNightId, player.user_id, gameId]
+  );
+}
+
         io.to(`gamenight_${gameNightId}`).emit('game_completed', { activeGameId });
 
         // Re-run algorithm

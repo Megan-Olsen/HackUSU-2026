@@ -42,17 +42,17 @@ export const joinGameNight = async (req, res) => {
 };
 
 export const leaveGameNight = async (req, res) => {
-    const { game_night_id } = req.body;
-    const user_id = req.user.id;
-    try { 
-        await pool.query(
-            'UPDATE game_night_players SET status = $1 WHERE game_night_id = $2 and user_id = $3',
-            ['left', game_night_id, user_id]
-        );
-        res.json({ message: 'Left Game Night' });
-    } catch (err) {
-        res.status(500).json({ error: err.message});
-    }
+  const { game_night_id } = req.params;
+  const user_id = req.user.id;
+  try {
+    await pool.query(
+      'UPDATE game_night_players SET status = $1 WHERE game_night_id = $2 AND user_id = $3',
+      ['left', game_night_id, user_id]
+    );
+    res.json({ message: 'Left game night' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 };
 
 export const removePlayer = async (req, res) => {
@@ -111,3 +111,5 @@ export const getGameNight = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+

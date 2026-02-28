@@ -3,19 +3,22 @@ import pool from '../db/index.js';
 export const runMatchingAlgorithm = async (gameNightId, io) => {
   try {
     // Get all waiting players
+    console.log('Algorithm running for game night:', gameNightId);
     const playersResult = await pool.query(
       'SELECT user_id FROM game_night_players WHERE game_night_id = $1 AND status = $2',
-      [gameNightId, 'waiting']
+      [parseInt(gameNightId), 'waiting']
     );
+    console.log('Players result:', playersResult.rows);
     const waitingPlayers = playersResult.rows.map(r => r.user_id);
     if (waitingPlayers.length < 2) return;
-
+    console.log('Waiting players:', waitingPlayers);
     // Get all available games for the night
     const gamesResult = await pool.query(
       'SELECT g.* FROM games g JOIN game_night_games gng ON g.id = gng.game_id WHERE gng.game_night_id = $1',
-      [gameNightId]
+      [parseInt(gameNightId)]
     );
     const games = gamesResult.rows;
+    console.log('Games available:', games.length);
 
     // Get all preferences for waiting players
     const prefsResult = await pool.query(
@@ -60,6 +63,11 @@ export const runMatchingAlgorithm = async (gameNightId, io) => {
       }
     }
 
+    console.log('Waiting players:', waitingPlayers);
+    console.log('Games available:', games.length);
+    console.log('Best game:', bestGame);
+    console.log('Best group:', bestGroup);
+    
     if (!bestGame) return;
 
     // Create active game
@@ -88,6 +96,6 @@ export const runMatchingAlgorithm = async (gameNightId, io) => {
     });
 
   } catch (err) {
-    console.error('Algorithm error:', err.message);
-  }
+  console.error('Algorithm error FULL:', err);
+}
 };

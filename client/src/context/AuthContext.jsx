@@ -1,11 +1,18 @@
 import { createContext, useState, useContext } from 'react';
 import axios from 'axios';
+import { jwtDecode } from 'jwt-decode';
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token') || null);
+  const [user, setUser] = useState(() => {
+    const t = localStorage.getItem('token');
+    if (t) {
+      try { return jwtDecode(t); } catch { return null; }
+    }
+    return null;
+  });
 
   axios.defaults.baseURL = 'http://localhost:5000';
   if (token) axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
