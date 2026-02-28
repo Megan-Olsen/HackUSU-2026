@@ -92,3 +92,22 @@ export const closeGameNight = async (req, res) => {
         res.status(500).json({ error: err.message});
     }
 };
+
+export const getGameNight = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const gameNight = await pool.query(
+      'SELECT * FROM game_nights WHERE id = $1',
+      [id]
+    );
+    const players = await pool.query(
+      `SELECT gnp.*, u.username FROM game_night_players gnp
+       JOIN users u ON gnp.user_id = u.id
+       WHERE gnp.game_night_id = $1 AND gnp.status != 'left'`,
+      [id]
+    );
+    res.json({ gameNight: gameNight.rows[0], players: players.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};

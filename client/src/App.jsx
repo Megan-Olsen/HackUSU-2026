@@ -1,21 +1,27 @@
-import { useEffect, useState } from 'react'
-import axios from 'axios'
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './context/AuthContext';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Dashboard from './pages/Dashboard';
+import GameNight from './pages/GameNight';
 
-function App() {
-const [serverMessage, setServerMessage] = useState("Waiting for server...")
-
-useEffect(() => {
-axios.get('http://localhost:5000/api/hello')
-.then(res => setServerMessage(res.data.message))
-.catch(err => setServerMessage("Error connecting to server"));
-}, [])
-
-return (
-<div style={{ textAlign: 'center', marginTop: '50px' }}>
-<h1>HackUSU 2026 Boilerplate</h1>
-<p>Server Status: <strong>{serverMessage}</strong></p>
-</div>
-)
+function PrivateRoute({ children }) {
+  const { token } = useAuth();
+  return token ? children : <Navigate to="/login" />;
 }
 
-export default App
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/dashboard" element={
+        <PrivateRoute><Dashboard /></PrivateRoute>
+      } />
+      <Route path="/gamenight/:id" element={
+        <PrivateRoute><GameNight /></PrivateRoute>
+      } />
+      <Route path="*" element={<Navigate to="/login" />} />
+    </Routes>
+  );
+}
