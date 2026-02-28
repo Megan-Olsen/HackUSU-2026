@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import authRoutes from './routes/authRoutes.js';
+import gameNightRoutes from './routes/gameNightRoutes.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -21,6 +22,7 @@ app.use(express.json());
 
 
 app.use('/api/auth', authRoutes);
+app.use('/api/gamenights', gameNightRoutes);
 
 //Test route
 app.get('/', (req, res) => {

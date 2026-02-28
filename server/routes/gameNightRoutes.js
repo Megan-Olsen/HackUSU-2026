@@ -1,0 +1,19 @@
+import express from 'express';
+import { authenticateToken } from '../middleware/auth';
+import {
+    createGameNight,
+    joinGameNight,
+    leaveGameNight,
+    removePlayer,
+    closeGameNight,
+} from '../controllers/gameNightController.js';
+
+const router = express.Router();
+
+router.post('/create', authenticateToken, createGameNight);
+router.post('/join', authenticateToken, joinGameNight);
+router.put('/leave/:game_night_id', authenticateToken, leaveGameNight);
+router.put('/remove/:game_night_id/:user_id', authenticateToken, removePlayer);
+router.put('/close/:game_night_id', authenticateToken, closeGameNight);
+
+export default router;
