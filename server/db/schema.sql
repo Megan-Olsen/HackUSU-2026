@@ -103,3 +103,7 @@ CREATE TABLE game_requests (
 
 CREATE INDEX idx_active_games_night ON active_games(game_night_id);
 CREATE INDEX idx_active_game_players_game ON active_game_players(active_game_id);
+
+ALTER TABLE player_game_preferences 
+ADD CONSTRAINT unique_player_game_pref 
+UNIQUE (game_night_id, user_id, game_id);

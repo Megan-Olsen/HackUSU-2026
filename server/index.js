@@ -45,6 +45,3 @@ server.listen(PORT, () => {
 app.get('/', (req, res) => {
     res.json({ message: 'Game Night Guru API is running!'});
 });
-
-
-
